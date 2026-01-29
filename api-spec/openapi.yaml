@@ -1,0 +1,320 @@
+openapi: 3.0.3
+info:
+  title: DepthSignals Elite API v2
+  description: | 
+    Complete OpenAPI specification for the DepthSignals Elite backend API.
+    
+    Base path: `/admin/v2`
+    Authentication: Laravel Sanctum Bearer tokens (POST /login to obtain)
+    Webhook: /signals/{strategyId} (public, signature verified)
+    
+    Derived directly from `routes/api.php` [cite:6].
+    Supports web dashboard, mobile apps, and admin terminal.
+  version: 2.0.0
+  contact:
+    name: DepthSignals Elite Team
+    email: support@depthsignals.elite
+servers:
+  - url: https://api.depthsignals.elite/admin/v2
+    description: Production
+  - url: https://staging.depthsignals.elite/admin/v2
+    description: Staging
+security:
+  - bearerAuth: []
+paths:
+  /login:
+    post:
+      tags:
+        - Auth
+      summary: Admin login
+      description: Authenticate admin user and return Sanctum token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  example: admin@depthsignals.elite
+                password:
+                  type: string
+                  example: 'secret'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+  /logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out
+  /dashboard:
+    get:
+      tags:
+        - Dashboard
+      summary: Dashboard overview
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+  /account:
+    get:
+      tags:
+        - Account
+      summary: Get account details
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/schemas/Account'
+    post:
+      tags:
+        - Account
+      summary: Sync account data
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+      responses:
+        '200':
+          description: Synced
+  /positions:
+    post:
+      tags:
+        - Positions
+      summary: Create new position
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePosition'
+      responses:
+        '201':
+          $ref: '#/components/schemas/Position'
+    get:
+      tags:
+        - Positions
+      summary: List positions (inferred endpoint, check controller)
+  /positions/{positionId}:
+    get:
+      tags:
+        - Positions
+      summary: Get position details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: positionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/schemas/Position'
+    put:
+      tags:
+        - Positions
+      summary: Close position
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: positionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Position closed
+  /executions:
+    post:
+      tags:
+        - Executions
+      summary: Store strategy execution
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StrategyExecution'
+  /strategies/{strategyId}/performance:
+    get:
+      tags:
+        - Strategies
+      summary: Strategy performance metrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/schemas/StrategyPerformance'
+  /signals/{strategyId}:
+    post:
+      tags:
+        - Signals (Webhook)
+      summary: Handle incoming signal webhook
+      description: Public endpoint for signal ingestion (signature verified in middleware)
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Signal'
+      responses:
+        '200':
+          description: Signal processed
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+    Account:
+      type: object
+      properties:
+        balance:
+          type: number
+        equity:
+          type: number
+        margin_used:
+          type: number
+    Position:
+      type: object
+      properties:
+        id:
+          type: integer
+        pair:
+          type: string
+          example: 'BTCUSDT'
+        side:
+          type: string
+          enum: [long, short]
+        size:
+          type: number
+        entry_price:
+          type: number
+        current_price:
+          type: number
+        pnl:
+          type: number
+    CreatePosition:
+      type: object
+      properties:
+        pair:
+          type: string
+        side:
+          type: string
+        size:
+          type: number
+        leverage:
+          type: integer
+    StrategyExecution:
+      type: object
+      properties:
+        strategy_id:
+          type: integer
+        signal_id:
+          type: integer
+        outcome:
+          type: string
+    StrategyPerformance:
+      type: object
+      properties:
+        win_rate:
+          type: number
+          format: float
+        total_trades:
+          type: integer
+        pnl:
+          type: number
+    Signal:
+      type: object
+      properties:
+        pair:
+          type: string
+        direction:
+          type: string
+          enum: [buy, sell]
+        confidence:
+          type: number
+          maximum: 1.0
+        timestamp:
+          type: string
+          format: date-time
+    Dashboard:
+      type: object
+      properties:
+        open_positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position'
+        total_pnl:
+          type: number
+        win_rate:
+          type: number
+        active_strategies:
+          type: array
+          items:
+            type: string
